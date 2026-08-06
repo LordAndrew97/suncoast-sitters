@@ -1,0 +1,18 @@
+Rename this file to exactly  CNAME  (no extension) and put ONLY your domain in it,
+on one line, with no https:// and no trailing slash. For example:
+
+suncoastsitters.com
+
+Then in your domain registrar's DNS settings, add these records:
+
+  Type   Name   Value
+  A      @      185.199.108.153
+  A      @      185.199.109.153
+  A      @      185.199.110.153
+  A      @      185.199.111.153
+  CNAME  www    YOUR-GITHUB-USERNAME.github.io
+
+DNS can take up to 24 hours. Once it resolves, go to Settings → Pages in GitHub
+and tick "Enforce HTTPS".
+
+If you are not using a custom domain yet, just delete this file.
