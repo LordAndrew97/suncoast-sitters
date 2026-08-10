@@ -1,0 +1,45 @@
+# macOS / Windows junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+
+# Wrangler local credentials and cache. Keep .wrangler/deploy/config.json.
+.wrangler/cache/
+.wrangler/state/
+
+# ---------------------------------------------------------------------------
+# NEVER COMMIT THESE. This repository is public and Git keeps history forever,
+# so a file deleted in a later commit is still retrievable by anyone.
+# ---------------------------------------------------------------------------
+private/
+sensitive/
+*-references.*
+*-background-check.*
+*-background_check.*
+*-disclosure-signed.*
+*-authorization-signed.*
+*-signed.pdf
+*.csv
+*.xlsx
+*.numbers
+
+# Sitter photographs are never published — they go privately to booked families
+# and live in your access-controlled store, not here.
+photos/sitters/
+photos/*-portrait.*
+
+# Scans and identity documents
+*id-scan*
+*passport*
+*licence*
+*license-scan*
+*ssn*
+*.p12
+*.pem
+.env
+.env.*
