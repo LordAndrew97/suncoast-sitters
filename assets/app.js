@@ -412,6 +412,17 @@
   /* Sends to whichever provider is configured. Resolves true if it went out. */
   function send(data) {
     var cfg = C.forms || {};
+    if (cfg.provider === "platform") {
+      if (data._subject === "New message from the website") {
+        return fetch("/api/public/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ name: data["Your name"], email: data.Email, message: data.Message })
+        }).then(function (r) { return r.ok; }).catch(function () { return false; });
+      }
+      window.location.href = "portal/";
+      return Promise.resolve(false);
+    }
     if (cfg.provider === "web3forms" && cfg.accessKey) {
       data.access_key = cfg.accessKey;
       return fetch("https://api.web3forms.com/submit", {
@@ -442,9 +453,9 @@
       var btn = $('button[type="submit"]', form);
       var label = btn ? btn.textContent : "";
       if (btn) { btn.disabled = true; btn.textContent = "Sending\u2026"; }
-      send(collect(form, subject)).then(function () {
+      send(collect(form, subject)).then(function (sent) {
         if (btn) { btn.disabled = false; btn.textContent = label; }
-        onDone(form);
+        if (sent) onDone(form);
       });
     });
   }

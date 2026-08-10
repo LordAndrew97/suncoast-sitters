@@ -11,6 +11,7 @@ desktop.ini
 # Wrangler local credentials and cache. Keep .wrangler/deploy/config.json.
 .wrangler/cache/
 .wrangler/state/
+.wrangler/tmp/
 
 # ---------------------------------------------------------------------------
 # NEVER COMMIT THESE. This repository is public and Git keeps history forever,
@@ -43,3 +44,8 @@ photos/*-portrait.*
 *.pem
 .env
 .env.*
+.dev.vars
+.dev.vars.*
+node_modules/
+coverage/
+dist/

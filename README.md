@@ -1,5 +1,7 @@
 # Suncoast Sitters
 
+The repository now contains both the existing public site and a Cloudflare Worker/D1 platform for family, sitter and operations workflows. Start with `docs/architecture.md`, `docs/security-and-privacy.md` and `docs/operations.md` before configuring or deploying the private platform.
+
 The website. Plain HTML, CSS and JavaScript — no build step, no framework, no
 `npm install`. Edit a file, save, push, done.
 

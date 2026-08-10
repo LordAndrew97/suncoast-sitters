@@ -208,7 +208,7 @@ window.CONFIG = {
      anything. Test it properly before you announce the site.
      --------------------------------------------------------------------- */
   forms: {
-    provider: "",                                            // ← FILL THIS IN: "web3forms" or "formspree"
+    provider: "platform",                                    // Built-in Worker/D1 contact handling
     accessKey: "",                                           // ← FILL THIS IN if using web3forms
     endpoint: ""                                             // ← FILL THIS IN if using formspree
   },

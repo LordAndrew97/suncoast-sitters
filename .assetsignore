@@ -10,10 +10,29 @@
 check.js
 README.md
 **/node_modules
+node_modules/
+node_modules/**
 **/.DS_Store
+src/
+src/**
+tests/
+tests/**
+migrations/
+migrations/**
+docs/
+docs/**
+coverage/
+coverage/**
+package.json
+package-lock.json
+tsconfig.json
+vitest.config.mts
+worker-configuration.d.ts
+.dev.vars*
 
 # Borradores legales y notas para vosotras dos. NO son públicos.
 legal/
+legal/**
 photos/README.md
 
 # Configuración de despliegue
@@ -21,7 +40,9 @@ wrangler.jsonc
 .assetsignore
 .gitignore
 **/.git
+.git/**
 .wrangler/
+.wrangler/**
 
 # Sólo para GitHub Pages: aquí no hacen nada
 .nojekyll
@@ -32,8 +53,11 @@ CNAME
 # formulario firmado o una hoja de contactos acaba en la carpeta por error,
 # que no se publique de todas formas.
 private/
+private/**
 sensitive/
+sensitive/**
 photos/sitters/
+photos/sitters/**
 photos/*-portrait.*
 *-references.*
 *-background-check.*

@@ -1,0 +1,28 @@
+{
+  "name": "suncoast-sitters-platform",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "check": "npm run typecheck && npm test",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "wrangler dev --local",
+    "db:migrate:local": "wrangler d1 migrations apply suncoast-sitters-db --local",
+    "types": "wrangler types"
+  },
+  "dependencies": {
+    "hono": "^4.9.2",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "latest",
+    "vitest": "latest",
+    "wrangler": "latest"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "workerd@1.20260804.1": true
+  }
+}

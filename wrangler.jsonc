@@ -1,56 +1,27 @@
-/* ============================================================================
-   wrangler.jsonc — configuración para publicar este sitio en Cloudflare.
-
-   El sitio es HTML, CSS y JS planos: no hay build, no hay framework, no hay
-   `npm install`. Esto es un Worker "solo assets": Cloudflare sirve los
-   ficheros tal cual, sin ejecutar código propio.
-
-   CÓMO DESPLEGAR (necesitas Node.js, el mismo que ya usas para check.js):
-
-     npx wrangler login       (una sola vez, abre el navegador)
-     node check.js            (siempre antes de publicar)
-     npx wrangler deploy
-
-   Te dará una dirección como https://suncoast-sitters.<tu-cuenta>.workers.dev
-   Cada `deploy` actualiza el sitio en segundos.
-
-   IMPORTANTE: "directory" es la carpeta del proyecto entera, así que lo que
-   NO debe ser público se excluye en el fichero .assetsignore que acompaña a
-   este. Revísalo antes del primer deploy: ahí es donde se queda fuera
-   check.js, el README y sobre todo la carpeta legal/.
-   ========================================================================== */
 {
-  // Nombre del Worker. Minúsculas y guiones; forma parte de la dirección
-  // *.workers.dev, así que cámbialo solo si sabes que quieres otra.
+  "$schema": "node_modules/wrangler/config-schema.json",
   "name": "suncoast-sitters",
-
-  // Fecha con la que Cloudflare fija el comportamiento de la plataforma.
-  // No la cambies sin motivo: subirla puede alterar cómo se sirve el sitio.
-  "compatibility_date": "2026-08-06",
-
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-10",
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
-    // La raíz del proyecto: index.html, assets/, content/, photos/,
-    // robots.txt, sitemap.xml.
     "directory": "./",
-
-    // El sitio navega con #/ (una sola página HTML), así que cualquier ruta
-    // que no sea un fichero real debe devolver index.html en lugar de un
-    // error. Si prefieres un 404 honesto en rutas inventadas, cambia esto por
-    // "none" — pero entonces un enlace antiguo o mal escrito da error.
-    "not_found_handling": "single-page-application"
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "suncoast-sitters-db",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "APP_ENV": "production",
+    "APP_ORIGIN": "https://suncoast-sitters.humads.workers.dev"
+  },
+  "observability": {
+    "enabled": true
   }
-
-  // ---------------------------------------------------------------------
-  // DOMINIO PROPIO. Cuando lo tengas y el dominio esté añadido a tu cuenta
-  // de Cloudflare, quita el comentario de este bloque, pon tu dominio real y
-  // vuelve a hacer `npx wrangler deploy`. HTTPS se configura solo.
-  //
-  // Ojo: si haces esto, el fichero CNAME y las instrucciones de
-  // CNAME.example dejan de aplicar — son para GitHub Pages. No apuntes el
-  // dominio a los dos sitios a la vez.
-  // ---------------------------------------------------------------------
-  // ,"routes": [
-  //   { "pattern": "suncoastsitters.com", "custom_domain": true },
-  //   { "pattern": "www.suncoastsitters.com", "custom_domain": true }
-  // ]
 }
