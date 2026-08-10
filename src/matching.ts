@@ -46,7 +46,7 @@ export function coversInterval(
 
 export async function findMatches(
   db: D1Database,
-  request: { familyUserId: string; area: string; startsAt: string; endsAt: string; transportRequired: boolean; timeZone: string }
+  request: { bookingId: string; familyUserId: string; area: string; startsAt: string; endsAt: string; transportRequired: boolean; timeZone: string }
 ): Promise<RankedMatch[]> {
   const [candidateResult, weeklyResult, exceptionResult, conflictResult, priorResult] = await db.batch([
     db.prepare(`SELECT user_id, display_name, service_areas_json, has_vehicle, can_transport_children,
@@ -54,7 +54,12 @@ export async function findMatches(
     db.prepare("SELECT sitter_user_id, weekday, start_minute, end_minute FROM weekly_availability"),
     db.prepare("SELECT sitter_user_id, starts_at, ends_at, available FROM availability_exceptions WHERE starts_at < ? AND ends_at > ?").bind(request.endsAt, request.startsAt),
     db.prepare(`SELECT assigned_sitter_user_id, starts_at, ends_at FROM bookings
-      WHERE assigned_sitter_user_id IS NOT NULL AND status IN ('confirmed','in_progress') AND starts_at < ? AND ends_at > ?`).bind(request.endsAt, request.startsAt),
+      WHERE id <> ? AND assigned_sitter_user_id IS NOT NULL AND status IN ('confirmed','in_progress') AND starts_at < ? AND ends_at > ?
+      UNION ALL
+      SELECT p.sitter_user_id AS assigned_sitter_user_id, b.starts_at, b.ends_at
+      FROM booking_proposals p JOIN bookings b ON b.id=p.booking_id
+      WHERE b.id <> ? AND p.status IN ('offered','accepted') AND b.status IN ('offered','confirmed') AND b.starts_at < ? AND b.ends_at > ?`)
+      .bind(request.bookingId,request.endsAt,request.startsAt,request.bookingId,request.endsAt,request.startsAt),
     db.prepare(`SELECT DISTINCT assigned_sitter_user_id FROM bookings WHERE family_user_id = ? AND status = 'completed' AND assigned_sitter_user_id IS NOT NULL`).bind(request.familyUserId)
   ]);
   if (!candidateResult || !weeklyResult || !exceptionResult || !conflictResult || !priorResult) throw new Error("MATCH_QUERY_FAILED");

@@ -186,7 +186,7 @@
       </form>
 
       <div class="resultbar">
-        <p class="count mb0" id="resultCount">8 sitters</p>
+        <p class="count mb0" id="resultCount">0 sitters</p>
         <div style="display:flex;gap:1.2rem;align-items:baseline;flex-wrap:wrap">
           <label class="util" for="f-sort" style="color:var(--slate)">Sort</label>
           <select id="f-sort" style="width:auto"><option value="exp">Most experience</option><option value="rate-asc">Rate, low to high</option><option value="rate-desc">Rate, high to low</option><option value="name">Name</option></select>
@@ -196,8 +196,8 @@
 
       <div class="grid" id="rosterGrid"></div>
       <div class="empty" id="rosterEmpty" hidden>
-        <h2 class="d3 mt0">No sitter matches all of those.</h2>
-        <p style="margin-top:.8rem">That is usually one filter too many rather than a real gap. Try removing the least important one — or tell us what you need and we will look through the roster ourselves.</p>
+        <h2 class="d3 mt0" id="rosterEmptyTitle">No sitter matches all of those.</h2>
+        <p id="rosterEmptyText" style="margin-top:.8rem">That is usually one filter too many rather than a real gap. Try removing the least important one — or tell us what you need and we will look through the roster ourselves.</p>
         <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-top:1.4rem">
           <button type="button" class="btn btn--sm" id="clearFilters2">Clear all filters</button>
           <a class="btn btn--sm btn--ghost" href="#/request">Tell us what you need</a>

@@ -6,7 +6,7 @@ import { canTransitionBooking, canTransitionSitter, hasRole, type BookingStatus,
 import { findMatches } from "./matching";
 import {
   clearSessionCookies, hashPassword, newId, randomToken, requestIp, sessionExpiry,
-  setSessionCookies, sha256, verifyPassword, type AppContext, type AppVariables, type SessionUser
+  setSessionCookies, sha256, timingSafeEqual, verifyPassword, type AppContext, type AppVariables, type SessionUser
 } from "./security";
 
 type App = { Bindings: Env; Variables: AppVariables };
@@ -15,7 +15,7 @@ const now = () => new Date().toISOString();
 const publicAuthPaths = new Set(["/api/auth/register", "/api/auth/login", "/api/auth/verify", "/api/auth/forgot-password", "/api/auth/reset-password", "/api/auth/bootstrap-admin", "/api/public/contact"]);
 
 app.onError((error, c) => {
-  console.error("request_error", { message: error.message, path: c.req.path });
+  console.error(JSON.stringify({ event: "request_error", message: error.message, path: c.req.path }));
   if (error.message.includes("SITTER_DOUBLE_BOOKING")) return c.json({ error: "This sitter is no longer available for that time." }, 409);
   return c.json({ error: "The request could not be completed." }, 500);
 });
@@ -59,7 +59,13 @@ app.post("/api/public/contact",async(c)=>{
 });
 
 const authSchema = z.object({ email: z.email().max(254), password: z.string().min(12).max(128) });
-const registerSchema = authSchema.extend({ role: z.enum(["family", "sitter"]), name: z.string().trim().min(2).max(80), avatar: z.enum(["heron","pelican","manatee","turtle","dolphin","flamingo","crab","owl"]).optional() });
+const registerSchema = authSchema.extend({
+  role: z.enum(["family", "sitter"]),
+  firstName: z.string().trim().min(1).max(60),
+  lastName: z.string().trim().min(1).max(80),
+  phone: z.string().trim().min(7).max(30),
+  avatar: z.enum(["heron","pelican","manatee","turtle","dolphin","flamingo","crab","owl"]).optional()
+});
 
 app.post("/api/auth/register", async (c) => {
   const parsed = registerSchema.safeParse(await safeJson(c));
@@ -71,6 +77,7 @@ app.post("/api/auth/register", async (c) => {
   const userId = newId("usr");
   const rawToken = randomToken();
   const timestamp = now();
+  const fullName = `${parsed.data.firstName} ${parsed.data.lastName}`;
   const publicCode = await nextCode(c.env.DB, parsed.data.role);
   const statements: D1PreparedStatement[] = [
     c.env.DB.prepare(`INSERT INTO users(id,email,password_hash,role,status,created_at,updated_at) VALUES (?,?,?,?,'pending_email',?,?)`)
@@ -79,16 +86,19 @@ app.post("/api/auth/register", async (c) => {
       .bind(newId("tok"), userId, await sha256(rawToken), new Date(Date.now() + 24 * 3600_000).toISOString(), timestamp)
   ];
   if (parsed.data.role === "family") {
-    statements.push(c.env.DB.prepare(`INSERT INTO family_profiles(user_id,public_code,household_name,created_at,updated_at) VALUES (?,?,?,?,?)`)
-      .bind(userId, publicCode, parsed.data.name, timestamp, timestamp));
+    statements.push(c.env.DB.prepare(`INSERT INTO family_profiles(user_id,public_code,household_name,first_name,last_name,phone,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)`)
+      .bind(userId, publicCode, fullName, parsed.data.firstName, parsed.data.lastName, parsed.data.phone, timestamp, timestamp));
   } else {
-    statements.push(c.env.DB.prepare(`INSERT INTO sitter_profiles(user_id,public_code,avatar,display_name,created_at,updated_at) VALUES (?,?,?,?,?,?)`)
-      .bind(userId, publicCode, parsed.data.avatar || "heron", parsed.data.name, timestamp, timestamp));
+    statements.push(c.env.DB.prepare(`INSERT INTO sitter_profiles(user_id,public_code,avatar,display_name,first_name,last_name,phone,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)`)
+      .bind(userId, publicCode, parsed.data.avatar || "heron", parsed.data.firstName, parsed.data.firstName, parsed.data.lastName, parsed.data.phone, timestamp, timestamp));
   }
   statements.push(c.env.DB.prepare(`INSERT INTO notification_outbox(id,user_id,channel,template,recipient,payload_json,available_at,created_at)
     VALUES (?,?,'email','verify_email',?,?,?,?)`).bind(newId("not"), userId, email, JSON.stringify({ verificationUrl: `${c.env.APP_ORIGIN}/portal/#verify=${rawToken}` }), timestamp, timestamp));
   await c.env.DB.batch(statements);
-  return c.json({ message: "Check your email to verify your account." }, 201);
+  return c.json({
+    message: "Account created. Email delivery is not configured yet; Suncoast Sitters will contact you before access is activated.",
+    verificationPending: true
+  }, 201);
 });
 
 app.post("/api/auth/verify", async (c) => {
@@ -143,9 +153,9 @@ app.get("/api/auth/me", async (c) => {
   const user = requireUser(c);
   if (user instanceof Response) return user;
   const profile = user.role === "family"
-    ? await c.env.DB.prepare("SELECT public_code,household_name,phone,default_area,emergency_contact_name,emergency_contact_phone FROM family_profiles WHERE user_id=?").bind(user.id).first()
+    ? await c.env.DB.prepare("SELECT public_code,household_name,first_name,last_name,phone,default_area,emergency_contact_name,emergency_contact_phone FROM family_profiles WHERE user_id=?").bind(user.id).first()
     : user.role === "sitter"
-      ? await c.env.DB.prepare("SELECT public_code,avatar,display_name,phone,bio,home_area,service_areas_json,age_groups_json,languages_json,has_vehicle,can_transport_children,screening_status FROM sitter_profiles WHERE user_id=?").bind(user.id).first()
+      ? await c.env.DB.prepare("SELECT public_code,avatar,display_name,first_name,last_name,phone,bio,home_area,service_areas_json,age_groups_json,languages_json,has_vehicle,can_transport_children,screening_status FROM sitter_profiles WHERE user_id=?").bind(user.id).first()
       : null;
   return c.json({ user: { id:user.id,email:user.email,role:user.role,status:user.status }, profile });
 });
@@ -186,7 +196,8 @@ app.post("/api/auth/reset-password", async (c) => {
 
 app.post("/api/auth/bootstrap-admin", async (c) => {
   const secret=(c.env as Env & {BOOTSTRAP_SECRET?:string}).BOOTSTRAP_SECRET;
-  if(!secret || c.req.header("X-Bootstrap-Secret")!==secret) return c.json({error:"Not found."},404);
+  const provided=c.req.header("X-Bootstrap-Secret")||"";
+  if(!secret || !await timingSafeEqual(provided,secret)) return c.json({error:"Not found."},404);
   if(await c.env.DB.prepare("SELECT 1 FROM users WHERE role='admin'").first()) return c.json({error:"An administrator already exists."},409);
   const parsed=authSchema.extend({name:z.string().min(2).max(80)}).safeParse(await safeJson(c));
   if(!parsed.success) return c.json({error:"Invalid administrator details."},400);
@@ -200,15 +211,15 @@ app.put("/api/profile", async (c) => {
   const user=requireUser(c); if(user instanceof Response)return user;
   const timestamp=now();
   if(user.role==="family"){
-    const parsed=z.object({householdName:z.string().trim().min(2).max(80),phone:z.string().max(30).nullable().optional(),defaultArea:z.string().max(80).nullable().optional(),emergencyContactName:z.string().max(80).nullable().optional(),emergencyContactPhone:z.string().max(30).nullable().optional()}).safeParse(await safeJson(c));
+    const parsed=z.object({firstName:z.string().trim().min(1).max(60),lastName:z.string().trim().min(1).max(80),phone:z.string().max(30).nullable().optional(),defaultArea:z.string().max(80).nullable().optional(),emergencyContactName:z.string().max(80).nullable().optional(),emergencyContactPhone:z.string().max(30).nullable().optional()}).safeParse(await safeJson(c));
     if(!parsed.success)return c.json({error:"Invalid profile fields."},400);
-    await c.env.DB.prepare(`UPDATE family_profiles SET household_name=?,phone=?,default_area=?,emergency_contact_name=?,emergency_contact_phone=?,updated_at=? WHERE user_id=?`)
-      .bind(parsed.data.householdName,parsed.data.phone??null,parsed.data.defaultArea??null,parsed.data.emergencyContactName??null,parsed.data.emergencyContactPhone??null,timestamp,user.id).run();
+    await c.env.DB.prepare(`UPDATE family_profiles SET household_name=?,first_name=?,last_name=?,phone=?,default_area=?,emergency_contact_name=?,emergency_contact_phone=?,updated_at=? WHERE user_id=?`)
+      .bind(`${parsed.data.firstName} ${parsed.data.lastName}`,parsed.data.firstName,parsed.data.lastName,parsed.data.phone??null,parsed.data.defaultArea??null,parsed.data.emergencyContactName??null,parsed.data.emergencyContactPhone??null,timestamp,user.id).run();
   }else if(user.role==="sitter"){
-    const parsed=z.object({displayName:z.string().trim().min(2).max(80),avatar:z.enum(["heron","pelican","manatee","turtle","dolphin","flamingo","crab","owl"]),phone:z.string().max(30).nullable().optional(),bio:z.string().max(1200).nullable().optional(),homeArea:z.string().max(80).nullable().optional(),serviceAreas:z.array(z.string().max(80)).max(20),ageGroups:z.array(z.string().max(40)).max(10),languages:z.array(z.string().max(40)).max(10),hasVehicle:z.boolean(),canTransportChildren:z.boolean()}).safeParse(await safeJson(c));
+    const parsed=z.object({firstName:z.string().trim().min(1).max(60),lastName:z.string().trim().min(1).max(80),avatar:z.enum(["heron","pelican","manatee","turtle","dolphin","flamingo","crab","owl"]),phone:z.string().max(30).nullable().optional(),bio:z.string().max(1200).nullable().optional(),homeArea:z.string().max(80).nullable().optional(),serviceAreas:z.array(z.string().max(80)).max(20),ageGroups:z.array(z.string().max(40)).max(10),languages:z.array(z.string().max(40)).max(10),hasVehicle:z.boolean(),canTransportChildren:z.boolean()}).safeParse(await safeJson(c));
     if(!parsed.success)return c.json({error:"Invalid profile fields."},400);
-    await c.env.DB.prepare(`UPDATE sitter_profiles SET display_name=?,avatar=?,phone=?,bio=?,home_area=?,service_areas_json=?,age_groups_json=?,languages_json=?,has_vehicle=?,can_transport_children=?,updated_at=? WHERE user_id=?`)
-      .bind(parsed.data.displayName,parsed.data.avatar,parsed.data.phone??null,parsed.data.bio??null,parsed.data.homeArea??null,JSON.stringify(parsed.data.serviceAreas),JSON.stringify(parsed.data.ageGroups),JSON.stringify(parsed.data.languages),Number(parsed.data.hasVehicle),Number(parsed.data.canTransportChildren),timestamp,user.id).run();
+    await c.env.DB.prepare(`UPDATE sitter_profiles SET display_name=?,first_name=?,last_name=?,avatar=?,phone=?,bio=?,home_area=?,service_areas_json=?,age_groups_json=?,languages_json=?,has_vehicle=?,can_transport_children=?,updated_at=? WHERE user_id=?`)
+      .bind(parsed.data.firstName,parsed.data.firstName,parsed.data.lastName,parsed.data.avatar,parsed.data.phone??null,parsed.data.bio??null,parsed.data.homeArea??null,JSON.stringify(parsed.data.serviceAreas),JSON.stringify(parsed.data.ageGroups),JSON.stringify(parsed.data.languages),Number(parsed.data.hasVehicle),Number(parsed.data.canTransportChildren),timestamp,user.id).run();
   }else return c.json({error:"This role has no public profile."},400);
   await audit(c as AppContext,"profile.update","user",user.id);
   return c.json({message:"Profile updated."});
@@ -222,11 +233,13 @@ app.get("/api/children", async(c)=>{
 
 app.post("/api/children",async(c)=>{
   const user=requireRole(c,["family"]);if(user instanceof Response)return user;
-  const parsed=z.object({nickname:z.string().trim().min(1).max(60),birthYear:z.number().int().min(2005).max(new Date().getUTCFullYear()),careNotes:z.string().max(1500).nullable().optional()}).safeParse(await safeJson(c));
+  const parsed=z.object({nickname:z.string().trim().max(60).optional(),birthYear:z.number().int().min(2005).max(new Date().getUTCFullYear()),careNotes:z.string().max(1500).nullable().optional()}).safeParse(await safeJson(c));
   if(!parsed.success)return c.json({error:"Invalid child details."},400);
+  const count=await c.env.DB.prepare("SELECT COUNT(*) AS count FROM children WHERE family_user_id=?").bind(user.id).first<{count:number}>();
+  const nickname=parsed.data.nickname||`Child ${Number(count?.count??0)+1}`;
   const id=newId("chd"),timestamp=now();
   await c.env.DB.prepare("INSERT INTO children(id,family_user_id,nickname,birth_year,care_notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?)")
-    .bind(id,user.id,parsed.data.nickname,parsed.data.birthYear,parsed.data.careNotes??null,timestamp,timestamp).run();
+    .bind(id,user.id,nickname,parsed.data.birthYear,parsed.data.careNotes??null,timestamp,timestamp).run();
   await audit(c as AppContext,"child.create","child",id);
   return c.json({id},201);
 });
@@ -239,9 +252,9 @@ app.delete("/api/children/:id",async(c)=>{
 
 app.put("/api/children/:id",async(c)=>{
   const user=requireRole(c,["family"]);if(user instanceof Response)return user;
-  const parsed=z.object({nickname:z.string().trim().min(1).max(60),birthYear:z.number().int().min(2005).max(new Date().getUTCFullYear()),careNotes:z.string().max(1500).nullable().optional(),active:z.boolean().default(true)}).safeParse(await safeJson(c));
+  const parsed=z.object({nickname:z.string().trim().max(60).optional(),birthYear:z.number().int().min(2005).max(new Date().getUTCFullYear()),careNotes:z.string().max(1500).nullable().optional(),active:z.boolean().default(true)}).safeParse(await safeJson(c));
   if(!parsed.success)return c.json({error:"Invalid child details."},400);
-  const result=await c.env.DB.prepare("UPDATE children SET nickname=?,birth_year=?,care_notes=?,active=?,updated_at=? WHERE id=? AND family_user_id=?").bind(parsed.data.nickname,parsed.data.birthYear,parsed.data.careNotes??null,Number(parsed.data.active),now(),c.req.param("id"),user.id).run();
+  const result=await c.env.DB.prepare("UPDATE children SET nickname=COALESCE(NULLIF(?,''),nickname),birth_year=?,care_notes=?,active=?,updated_at=? WHERE id=? AND family_user_id=?").bind(parsed.data.nickname??"",parsed.data.birthYear,parsed.data.careNotes??null,Number(parsed.data.active),now(),c.req.param("id"),user.id).run();
   if(!result.meta.changes)return c.json({error:"Child not found."},404);
   await audit(c as AppContext,"child.update","child",c.req.param("id"));return c.json({message:"Child updated."});
 });
@@ -327,7 +340,7 @@ app.post("/api/admin/bookings/:id/match",async(c)=>{
   const booking=await c.env.DB.prepare("SELECT id,family_user_id,area,starts_at,ends_at,timezone,transport_required,status FROM bookings WHERE id=?").bind(c.req.param("id")).first<{id:string;family_user_id:string;area:string;starts_at:string;ends_at:string;timezone:string;transport_required:number;status:BookingStatus}>();
   if(!booking)return c.json({error:"Booking not found."},404);
   if(!["requested","matching","offered"].includes(booking.status))return c.json({error:"Booking is not matchable."},409);
-  const matches=await findMatches(c.env.DB,{familyUserId:booking.family_user_id,area:booking.area,startsAt:booking.starts_at,endsAt:booking.ends_at,transportRequired:Boolean(booking.transport_required),timeZone:booking.timezone});
+  const matches=await findMatches(c.env.DB,{bookingId:booking.id,familyUserId:booking.family_user_id,area:booking.area,startsAt:booking.starts_at,endsAt:booking.ends_at,transportRequired:Boolean(booking.transport_required),timeZone:booking.timezone});
   const timestamp=now();const statements:D1PreparedStatement[]=[c.env.DB.prepare("DELETE FROM booking_proposals WHERE booking_id=? AND status IN ('queued','offered')").bind(booking.id)];
   matches.slice(0,20).forEach((match,index)=>statements.push(c.env.DB.prepare(`INSERT INTO booking_proposals(id,booking_id,sitter_user_id,rank,score,reasons_json,status,offered_at,expires_at,created_at) VALUES (?,?,?,?,?,? ,?,?,?,?)`).bind(newId("prp"),booking.id,match.userId,index+1,match.score,JSON.stringify(match.reasons),index===0?"offered":"queued",index===0?timestamp:null,index===0?new Date(Date.now()+12*3600_000).toISOString():null,timestamp)));
   const target=matches.length?"offered":"matching";
@@ -339,9 +352,16 @@ app.post("/api/admin/bookings/:id/match",async(c)=>{
 app.post("/api/proposals/:id/respond",async(c)=>{
   const user=requireRole(c,["sitter"]);if(user instanceof Response)return user;
   const parsed=z.object({response:z.enum(["accepted","declined"])}).safeParse(await safeJson(c));if(!parsed.success)return c.json({error:"Invalid response."},400);
-  const proposal=await c.env.DB.prepare(`SELECT p.id,p.booking_id,p.status,b.status AS booking_status FROM booking_proposals p JOIN bookings b ON b.id=p.booking_id WHERE p.id=? AND p.sitter_user_id=?`).bind(c.req.param("id"),user.id).first<{id:string;booking_id:string;status:string;booking_status:BookingStatus}>();
+  const proposal=await c.env.DB.prepare(`SELECT p.id,p.booking_id,p.status,p.expires_at,b.status AS booking_status FROM booking_proposals p JOIN bookings b ON b.id=p.booking_id WHERE p.id=? AND p.sitter_user_id=?`).bind(c.req.param("id"),user.id).first<{id:string;booking_id:string;status:string;expires_at:string|null;booking_status:BookingStatus}>();
   if(!proposal||proposal.status!=="offered")return c.json({error:"Proposal is no longer available."},409);
   const timestamp=now();
+  if(!proposal.expires_at||proposal.expires_at<=timestamp){
+    await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE booking_proposals SET status='expired',responded_at=? WHERE id=? AND status='offered'").bind(timestamp,proposal.id),
+      c.env.DB.prepare("UPDATE bookings SET status='matching',updated_at=? WHERE id=? AND status='offered'").bind(timestamp,proposal.booking_id)
+    ]);
+    return c.json({error:"This proposal has expired."},409);
+  }
   if(parsed.data.response==="declined"){
     await c.env.DB.prepare("UPDATE booking_proposals SET status='declined',responded_at=? WHERE id=? AND status='offered'").bind(timestamp,proposal.id).run();
     await c.env.DB.prepare("UPDATE bookings SET status='matching',updated_at=? WHERE id=? AND status='offered'").bind(timestamp,proposal.booking_id).run();
@@ -413,7 +433,20 @@ app.get("/api/admin/incidents",async(c)=>{const user=requireRole(c,["operations"
 
 app.put("/api/admin/incidents/:id",async(c)=>{const user=requireRole(c,["operations","admin"]);if(user instanceof Response)return user;const parsed=z.object({status:z.enum(["open","investigating","resolved","closed"]),assignedTo:z.string().nullable().optional()}).safeParse(await safeJson(c));if(!parsed.success)return c.json({error:"Invalid incident status."},400);const timestamp=now();const result=await c.env.DB.prepare("UPDATE incidents SET status=?,assigned_to=?,resolved_at=CASE WHEN ? IN ('resolved','closed') THEN ? ELSE NULL END,updated_at=? WHERE id=?").bind(parsed.data.status,parsed.data.assignedTo??user.id,parsed.data.status,timestamp,timestamp,c.req.param("id")).run();if(!result.meta.changes)return c.json({error:"Incident not found."},404);await audit(c as AppContext,"incident.status","incident",c.req.param("id"),{status:parsed.data.status});return c.json({status:parsed.data.status});});
 
-app.post("/api/account/deletion-request",async(c)=>{const user=requireUser(c);if(user instanceof Response)return user;const existing=await c.env.DB.prepare("SELECT id FROM account_deletion_requests WHERE user_id=? AND status IN ('requested','approved')").bind(user.id).first();if(existing)return c.json({message:"A deletion request is already pending."});const id=newId("del");await c.env.DB.prepare("INSERT INTO account_deletion_requests(id,user_id,requested_at) VALUES (?,?,?)").bind(id,user.id,now()).run();await audit(c as AppContext,"account.deletion_request","user",user.id);return c.json({id,message:"Deletion request submitted."},201);});
+app.post("/api/account/deletion-request",async(c)=>{
+  const user=requireUser(c);if(user instanceof Response)return user;
+  const parsed=authSchema.pick({password:true}).safeParse(await safeJson(c));
+  if(!parsed.success)return c.json({error:"Password confirmation is required."},400);
+  if(!await rateLimit(c as AppContext,"account-deletion",user.id,5,3600))return c.json({error:"Too many attempts. Try again later."},429);
+  const credentials=await c.env.DB.prepare("SELECT password_hash FROM users WHERE id=? AND status='active'").bind(user.id).first<{password_hash:string}>();
+  if(!credentials||!await verifyPassword(parsed.data.password,credentials.password_hash))return c.json({error:"Password confirmation failed."},403);
+  const existing=await c.env.DB.prepare("SELECT id FROM account_deletion_requests WHERE user_id=? AND status IN ('requested','approved')").bind(user.id).first();
+  if(existing)return c.json({message:"A deletion request is already pending."});
+  const id=newId("del");
+  await c.env.DB.prepare("INSERT INTO account_deletion_requests(id,user_id,requested_at) VALUES (?,?,?)").bind(id,user.id,now()).run();
+  await audit(c as AppContext,"account.deletion_request","user",user.id);
+  return c.json({id,message:"Deletion request submitted."},201);
+});
 
 app.post("/api/admin/deletions/:id/complete",async(c)=>{
   const admin=requireRole(c,["admin"]);if(admin instanceof Response)return admin;

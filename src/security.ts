@@ -29,6 +29,20 @@ export async function sha256(value: string): Promise<string> {
   return bytesToBase64(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))));
 }
 
+export async function timingSafeEqual(left: string, right: string): Promise<boolean> {
+  const [leftBuffer, rightBuffer] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(left)),
+    crypto.subtle.digest("SHA-256", encoder.encode(right))
+  ]);
+  const leftHash = new Uint8Array(leftBuffer);
+  const rightHash = new Uint8Array(rightBuffer);
+  let mismatch = 0;
+  for (let index = 0; index < leftHash.length; index += 1) {
+    mismatch |= leftHash[index]! ^ rightHash[index]!;
+  }
+  return mismatch === 0;
+}
+
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);

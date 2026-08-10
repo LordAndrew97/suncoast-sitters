@@ -277,6 +277,11 @@
     $("#rosterGrid").innerHTML = list.map(card).join("");
     $("#rosterGrid").hidden = list.length === 0;
     $("#rosterEmpty").hidden = list.length > 0;
+    if (ALL.length === 0) {
+      $("#rosterEmptyTitle").textContent = "Our approved public roster is being prepared.";
+      $("#rosterEmptyText").textContent = "No sitter profile is publicly listed yet. Tell us what you need and we will contact you when an approved match is available.";
+      $("#clearFilters2").hidden = true;
+    }
   }
 
   /* ---------------------------------------------------------------------

@@ -25,4 +25,11 @@ describe("private static entry points", () => {
       expect(ignore).toContain(pattern);
     }
   });
+
+  it("guards against overlapping offered or accepted sitter proposals at the database layer", () => {
+    const migration = readFileSync(resolve(root, "migrations/0003_registration_and_proposal_safety.sql"), "utf8");
+    expect(migration).toContain("prevent_overlapping_sitter_proposal_insert");
+    expect(migration).toContain("prevent_overlapping_sitter_proposal_update");
+    expect(migration).toContain("SITTER_DOUBLE_BOOKING");
+  });
 });

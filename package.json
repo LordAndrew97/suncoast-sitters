@@ -9,6 +9,7 @@
     "test:watch": "vitest",
     "dev": "wrangler dev --local",
     "db:migrate:local": "wrangler d1 migrations apply suncoast-sitters-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply suncoast-sitters-db --remote",
     "types": "wrangler types"
   },
   "dependencies": {

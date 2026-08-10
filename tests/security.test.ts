@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hashPassword, randomToken, sha256, verifyPassword } from "../src/security";
+import { hashPassword, randomToken, sha256, timingSafeEqual, verifyPassword } from "../src/security";
 
 describe("credential security", () => {
   it("hashes passwords with salt and rejects an incorrect password", async () => {
@@ -13,5 +13,10 @@ describe("credential security", () => {
     const token = randomToken();
     expect(token.length).toBeGreaterThanOrEqual(40);
     expect(await sha256(token)).not.toBe(token);
+  });
+
+  it("compares bootstrap secrets without exposing an early-exit comparison", async () => {
+    expect(await timingSafeEqual("the configured secret", "the configured secret")).toBe(true);
+    expect(await timingSafeEqual("the configured secret", "a different secret")).toBe(false);
   });
 });

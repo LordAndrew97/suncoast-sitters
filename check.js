@@ -176,9 +176,14 @@ if (S && S.filter(function (s) { return s.listed !== false; }).length < 3) {
   warn("Fewer than 3 sitters are listed. A roster this thin undercuts the whole 'choose your own sitter' promise. Consider waiting to launch.");
 }
 if (S && S.some(function (s) {
-  return ["maria", "rosa", "aleksandra", "nia", "devon", "tomas", "jasmine", "grace"].indexOf(s.slug) > -1;
+  return s.listed !== false && ["maria", "rosa", "aleksandra", "nia", "devon", "tomas", "jasmine", "grace"].indexOf(s.slug) > -1;
 })) {
   err("THE FICTIONAL EXAMPLE SITTERS ARE STILL IN content/sitters.js. Delete them before going live — otherwise you are advertising people who do not exist.");
+}
+if (S && S.some(function (s) {
+  return s.listed === false && ["maria", "rosa", "aleksandra", "nia", "devon", "tomas", "jasmine", "grace"].indexOf(s.slug) > -1;
+})) {
+  warn("The fictional example sitters are hidden from the public roster. Replace or delete them when real approved profiles are ready.");
 }
 if (!F || !F.length) warn("content/faqs.js is empty. The FAQ page earns real search traffic.");
 

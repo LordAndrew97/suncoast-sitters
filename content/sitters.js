@@ -95,7 +95,7 @@
 
 window.SITTERS = [
   {
-    listed: true,
+    listed: false,
     slug: "maria",
     first: "Maria", years: 12, rate: 26, min: 3, tint: 0,
     avatar: "heron",
@@ -126,7 +126,7 @@ window.SITTERS = [
     ]
   },
   {
-    listed: true,
+    listed: false,
     slug: "rosa",
     first: "Rosa", years: 20, rate: 34, min: 3, tint: 2,
     avatar: "pelican",
@@ -157,7 +157,7 @@ window.SITTERS = [
     ]
   },
   {
-    listed: true,
+    listed: false,
     slug: "aleksandra",
     first: "Aleksandra", years: 15, rate: 32, min: 4, tint: 1,
     avatar: "manatee",
@@ -189,7 +189,7 @@ window.SITTERS = [
     ]
   },
   {
-    listed: true,
+    listed: false,
     slug: "nia",
     first: "Nia", years: 10, rate: 30, min: 3, tint: 3,
     avatar: "turtle",
@@ -221,7 +221,7 @@ window.SITTERS = [
     ]
   },
   {
-    listed: true,
+    listed: false,
     slug: "devon",
     first: "Devon", years: 6, rate: 24, min: 3, tint: 1,
     avatar: "dolphin",
@@ -252,7 +252,7 @@ window.SITTERS = [
     ]
   },
   {
-    listed: true,
+    listed: false,
     slug: "tomas",
     first: "Tomás", years: 7, rate: 25, min: 3, tint: 0,
     avatar: "flamingo",
@@ -282,7 +282,7 @@ window.SITTERS = [
     ]
   },
   {
-    listed: true,
+    listed: false,
     slug: "jasmine",
     first: "Jasmine", years: 4, rate: 22, min: 2, tint: 3,
     avatar: "crab",
@@ -313,7 +313,7 @@ window.SITTERS = [
     ]
   },
   {
-    listed: true,
+    listed: false,
     slug: "grace",
     first: "Grace", years: 5, rate: 23, min: 3, tint: 2,
     avatar: "owl",

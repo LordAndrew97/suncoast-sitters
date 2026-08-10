@@ -53,7 +53,11 @@
       $("#registerForm")?.classList.toggle("hidden", button.dataset.authTab !== "register");
       if ($("#authTitle")) $("#authTitle").textContent = button.dataset.authTab === "login" ? "Welcome back" : "Join Suncoast Sitters";
     }));
-    $("#regRole")?.addEventListener("change", (event) => $("#avatarField")?.classList.toggle("hidden", event.target.value !== "sitter"));
+    $("#regRole")?.addEventListener("change", (event) => {
+      const sitter = event.target.value === "sitter";
+      $("#avatarField")?.classList.toggle("hidden", !sitter);
+      $("#sitterDisclaimer")?.classList.toggle("hidden", !sitter);
+    });
     $("#loginForm")?.addEventListener("submit", async (event) => {
       event.preventDefault(); message("#authMessage", "");
       try {
@@ -65,8 +69,10 @@
     $("#registerForm")?.addEventListener("submit", async (event) => {
       event.preventDefault(); message("#authMessage", "");
       try {
-        const result = await api("/api/auth/register", { method: "POST", body: JSON.stringify({ role: $("#regRole").value, name: $("#regName").value, email: $("#regEmail").value, password: $("#regPassword").value, avatar: $("#regAvatar").value }) });
+        const result = await api("/api/auth/register", { method: "POST", body: JSON.stringify({ role: $("#regRole").value, firstName: $("#regFirstName").value, lastName: $("#regLastName").value, phone: $("#regPhone").value, email: $("#regEmail").value, password: $("#regPassword").value, avatar: $("#regAvatar").value }) });
         message("#authMessage", result.message); event.target.reset();
+        $("#avatarField")?.classList.add("hidden");
+        $("#sitterDisclaimer")?.classList.add("hidden");
       } catch (error) { message("#authMessage", error.message, true); }
     });
     $("#forgotBtn")?.addEventListener("click", async () => {
@@ -125,9 +131,9 @@
 
   function renderProfile(family) {
     const form=$("#profileForm");form.replaceChildren(); const p=me.profile||{};
-    if(family){form.append(inputField("Household name","householdName",p.household_name),inputField("Phone","phone",p.phone,"tel"),inputField("Default area","defaultArea",p.default_area),inputField("Emergency contact","emergencyContactName",p.emergency_contact_name),inputField("Emergency contact phone","emergencyContactPhone",p.emergency_contact_phone,"tel"));}
+    if(family){form.append(inputField("First name","firstName",p.first_name||""),inputField("Last name","lastName",p.last_name||""),inputField("Phone","phone",p.phone,"tel"),inputField("Default area","defaultArea",p.default_area),inputField("Emergency contact","emergencyContactName",p.emergency_contact_name),inputField("Emergency contact phone","emergencyContactPhone",p.emergency_contact_phone,"tel"));}
     else{
-      form.append(inputField("Display name","displayName",p.display_name),inputField("Phone","phone",p.phone,"tel"),inputField("Home area","homeArea",p.home_area));
+      form.append(inputField("First name","firstName",p.first_name||p.display_name||""),inputField("Last name","lastName",p.last_name||""),inputField("Phone","phone",p.phone,"tel"),inputField("Home area","homeArea",p.home_area));
       const avatarWrap=el("div",undefined,"field"),label=el("label","Wildlife avatar"),select=el("select");select.name="avatar";["heron","pelican","manatee","turtle","dolphin","flamingo","crab","owl"].forEach(v=>{const o=el("option",v);o.value=v;o.selected=v===(p.avatar||"heron");select.append(o)});avatarWrap.append(label,select);form.append(avatarWrap);
       [["Service areas (comma separated)","serviceAreas",safeArray(p.service_areas_json).join(", ")],["Age groups (comma separated)","ageGroups",safeArray(p.age_groups_json).join(", ")],["Languages (comma separated)","languages",safeArray(p.languages_json).join(", ")]].forEach(([l,n,v])=>form.append(inputField(l,n,v)));
       const bioWrap=el("div",undefined,"field full"),bioLabel=el("label","Short bio"),bio=el("textarea");bio.name="bio";bio.value=p.bio||"";bioWrap.append(bioLabel,bio);form.append(bioWrap);
@@ -137,11 +143,11 @@
   }
 
   function wirePortalForms(family) {
-    $("#profileForm").addEventListener("submit",async(event)=>{event.preventDefault();const data=new FormData(event.target);const body=family?{householdName:data.get("householdName"),phone:empty(data.get("phone")),defaultArea:empty(data.get("defaultArea")),emergencyContactName:empty(data.get("emergencyContactName")),emergencyContactPhone:empty(data.get("emergencyContactPhone"))}:{displayName:data.get("displayName"),avatar:data.get("avatar"),phone:empty(data.get("phone")),bio:empty(data.get("bio")),homeArea:empty(data.get("homeArea")),serviceAreas:csv(data.get("serviceAreas")),ageGroups:csv(data.get("ageGroups")),languages:csv(data.get("languages")),hasVehicle:data.has("hasVehicle"),canTransportChildren:data.has("canTransportChildren")};try{const result=await api("/api/profile",{method:"PUT",body:JSON.stringify(body)});message("#profileMessage",result.message)}catch(error){message("#profileMessage",error.message,true)}});
+    $("#profileForm").addEventListener("submit",async(event)=>{event.preventDefault();const data=new FormData(event.target);const body=family?{firstName:data.get("firstName"),lastName:data.get("lastName"),phone:empty(data.get("phone")),defaultArea:empty(data.get("defaultArea")),emergencyContactName:empty(data.get("emergencyContactName")),emergencyContactPhone:empty(data.get("emergencyContactPhone"))}:{firstName:data.get("firstName"),lastName:data.get("lastName"),avatar:data.get("avatar"),phone:empty(data.get("phone")),bio:empty(data.get("bio")),homeArea:empty(data.get("homeArea")),serviceAreas:csv(data.get("serviceAreas")),ageGroups:csv(data.get("ageGroups")),languages:csv(data.get("languages")),hasVehicle:data.has("hasVehicle"),canTransportChildren:data.has("canTransportChildren")};try{const result=await api("/api/profile",{method:"PUT",body:JSON.stringify(body)});message("#profileMessage",result.message)}catch(error){message("#profileMessage",error.message,true)}});
     $("#childForm")?.addEventListener("submit",async(event)=>{event.preventDefault();try{await api("/api/children",{method:"POST",body:JSON.stringify({nickname:$("#childName").value,birthYear:Number($("#childYear").value),careNotes:empty($("#childNotes").value)})});event.target.reset();loadChildren()}catch(error){window.alert(error.message)}});
     $("#availabilityForm")?.addEventListener("submit",async(event)=>{event.preventDefault();const start=minutes($("#startTime").value),end=minutes($("#endTime").value),days=[...$("#availableDays").selectedOptions].map(o=>Number(o.value));try{const result=await api("/api/availability",{method:"PUT",body:JSON.stringify({weekly:days.map(weekday=>({weekday,startMinute:start,endMinute:end})),exceptions:[]})});message("#availabilityMessage",result.message)}catch(error){message("#availabilityMessage",error.message,true)}});
     $("#bookingForm")?.addEventListener("submit",async(event)=>{event.preventDefault();const childIds=[...$("#bookingChildren").selectedOptions].map(o=>o.value);try{const result=await api("/api/bookings",{method:"POST",body:JSON.stringify({area:$("#bookingArea").value,startsAt:floridaWallTimeToUtc($("#bookingStart").value),endsAt:floridaWallTimeToUtc($("#bookingEnd").value),timezone:"America/New_York",transportRequired:$("#bookingTransport").checked,notes:empty($("#bookingNotes").value),childIds})});window.alert(`Draft ${result.code} created.`);event.target.reset();loadBookings(family)}catch(error){window.alert(error.message)}});
-    $("#deletionBtn").addEventListener("click",async()=>{if(!confirm("Submit an account deletion request for staff review?"))return;try{const result=await api("/api/account/deletion-request",{method:"POST",body:"{}"});message("#deletionMessage",result.message)}catch(error){message("#deletionMessage",error.message,true)}});
+    $("#deletionBtn").addEventListener("click",async()=>{if(!confirm("Submit an account deletion request for staff review?"))return;const password=prompt("Confirm your current password:");if(!password)return;try{const result=await api("/api/account/deletion-request",{method:"POST",body:JSON.stringify({password})});message("#deletionMessage",result.message)}catch(error){message("#deletionMessage",error.message,true)}});
   }
 
   async function loadChildren() {
