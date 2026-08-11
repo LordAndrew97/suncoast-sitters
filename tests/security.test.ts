@@ -4,6 +4,7 @@ import { hashPassword, randomToken, sha256, timingSafeEqual, verifyPassword } fr
 describe("credential security", () => {
   it("hashes passwords with salt and rejects an incorrect password", async () => {
     const hash = await hashPassword("a sufficiently long passphrase");
+    expect(hash).toMatch(/^pbkdf2-sha256\$100000\$/);
     expect(hash).not.toContain("a sufficiently long passphrase");
     expect(await verifyPassword("a sufficiently long passphrase", hash)).toBe(true);
     expect(await verifyPassword("a different long passphrase", hash)).toBe(false);

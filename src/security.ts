@@ -2,7 +2,10 @@ import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import type { Context } from "hono";
 
 const encoder = new TextEncoder();
-const PBKDF2_ITERATIONS = 600_000;
+// Cloudflare Workers caps Web Crypto PBKDF2 at 100,000 iterations.
+// Keep this value aligned with the runtime limit so registration and login
+// use the same portable password format in local tests and production.
+const PBKDF2_ITERATIONS = 100_000;
 const SESSION_DAYS = 14;
 
 function bytesToBase64(bytes: Uint8Array): string {
