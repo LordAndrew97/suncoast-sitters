@@ -33,13 +33,27 @@ export function coversInterval(
   const availableException = relevantExceptions.some((e) => e.available && e.starts_at <= startsAt && e.ends_at >= endsAt);
   if (availableException) return true;
 
-  for (let cursor = start; cursor < end; cursor += 15 * 60_000) {
-    const sliceEnd = Math.min(cursor + 15 * 60_000, end);
+  for (let cursor = start; cursor < end;) {
+    let sliceEnd = Math.min(cursor + 15 * 60_000, end);
     const from = zonedParts(new Date(cursor), timeZone);
-    const to = zonedParts(new Date(sliceEnd - 1), timeZone);
-    if (from.weekday !== to.weekday) return false;
-    const covered = weekly.some((w) => w.sitter_user_id === sitterId && w.weekday === from.weekday && w.start_minute <= from.minute && w.end_minute >= to.minute + 1);
+    let toMinute: number;
+    if (zonedParts(new Date(sliceEnd - 1), timeZone).weekday === from.weekday) {
+      toMinute = zonedParts(new Date(sliceEnd - 1), timeZone).minute + 1;
+    } else {
+      // This slice straddles a local-midnight boundary (happens whenever the interval's
+      // start-of-day minute isn't a multiple of 15). Narrow sliceEnd down to that boundary
+      // so each slice we check availability for stays within a single weekday.
+      let lo = cursor, hi = sliceEnd;
+      while (hi - lo > 1000) {
+        const mid = Math.floor((lo + hi) / 2);
+        if (zonedParts(new Date(mid), timeZone).weekday === from.weekday) lo = mid; else hi = mid;
+      }
+      sliceEnd = hi;
+      toMinute = 1440;
+    }
+    const covered = weekly.some((w) => w.sitter_user_id === sitterId && w.weekday === from.weekday && w.start_minute <= from.minute && w.end_minute >= toMinute);
     if (!covered) return false;
+    cursor = sliceEnd;
   }
   return true;
 }

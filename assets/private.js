@@ -114,6 +114,7 @@
     buildNav(family ? [["overview","Overview"],["profile","Profile"],["children","Children"],["bookings","Bookings"],["privacy","Privacy"]] : [["overview","Overview"],["profile","Profile"],["availability","Availability"],["bookings","Bookings"],["privacy","Privacy"]]);
     $("#welcomeTitle").textContent = `Welcome, ${family ? me.profile?.household_name || "family" : me.profile?.display_name || "sitter"}`;
     renderOverview(family); renderProfile(family); wirePortalForms(family);
+    $("#bookingCreateCard")?.classList.toggle("hidden", !family);
     if (family) loadChildren(); loadBookings(family);
   }
 
